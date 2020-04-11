@@ -1,0 +1,9 @@
+const char wifiSsids[2][10] = {
+                         "SSID1",
+                         "SSID2",                         
+                     };
+const char wifiPasswords[2][20] = {
+                         "***", 
+                         "***",
+                     };
+const char remoteURL[40] = "http://some.host.com/status.json";
