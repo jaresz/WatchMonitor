@@ -319,7 +319,6 @@ void loop()
 
 	ArduinoOTA.handle();
 	// Check if a client has connected
-	
 
 	if ((millis() - lastDebounceTime) > 2000)
 	{
@@ -332,36 +331,43 @@ void loop()
 		http.useHTTP10(true);
 		Serial.print(".");
 		http.begin(remoteURL);
-		Serial.print(".");
-		http.GET();
-		Serial.print(".");
-
-		// Parse response
-		DynamicJsonDocument doc(2048);
-		Serial.print(".");
-		deserializeJson(doc, http.getStream());
-		Serial.print(".");
+		Serial.print(". code:");
+		int httpCode = http.GET();
+		Serial.print(httpCode);
 		Serial.print(" ");
-		// Read values
-		Serial.print(doc["uptime"].as<long>());
-		Serial.print(" pir:");
-		Serial.print(doc["pir"][0].as<long>());
-		Serial.print(",");
-		Serial.print(doc["pir"][1].as<long>());
+		if (200 == httpCode)
+		{
+			// Parse response
+			DynamicJsonDocument doc(2048);
+			Serial.print(".");
+			deserializeJson(doc, http.getStream());
+			Serial.print(".");
+			Serial.print(" ");
+			// Read values
+			Serial.print(doc["uptime"].as<long>());
+			Serial.print(" pir:");
+			Serial.print(doc["pir"][0].as<long>());
+			Serial.print(",");
+			Serial.print(doc["pir"][1].as<long>());
 
-		Serial.print(" light:");
-		Serial.print(doc["light"][0].as<long>());
-		Serial.print(",");
-		Serial.print(doc["light"][1].as<long>());
+			Serial.print(" light:");
+			Serial.print(doc["light"][0].as<long>());
+			Serial.print(",");
+			Serial.print(doc["light"][1].as<long>());
 
-		Serial.print(" reed:");
-		Serial.print(doc["reed"][0].as<long>());
-		// Disconnect
-		// Disconnect
-		http.end();
-		
+			Serial.print(" reed:");
+			Serial.print(doc["reed"][0].as<long>());
+			// Disconnect
+			// Disconnect
+			http.end();
+		}
+		else
+		{
+			Serial.print("Can not open ");
+			Serial.print(remoteURL);
+			Serial.print(" ! ");
+		}
 		lastDebounceTime = millis();
 		Serial.println("");
-		
 	}
 }
