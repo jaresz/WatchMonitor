@@ -25,6 +25,9 @@ int ledStripNumpixels[2] = {5, 5};
 int lightState[2] = {LIGHT_OFF, LIGHT_OFF}; // 0 - off, 1 - turning on, 2 - on, 3 - turning off
 int pirPin[2] = {16, 4};
 int selectedPixelNumber[2] = {0, 0};
+int pirs[2] = {0, 0};
+int lights[2] = {0, 0};
+int alarms[2] = {0, 0};
 
 unsigned long lastDebounceTime = 0; // the last time the output pin was toggled
 unsigned long debounceDelay = 50;	// the debounce time; increase if the output flickers
@@ -210,110 +213,6 @@ void setup()
 	digitalWrite(LED_PIN, LOW);
 }
 
-void srvPage(WiFiClient client, int lightState[2], int ledState)
-{
-	// Return the response
-	client.println("HTTP/1.1 200 OK");
-	client.println("Content-Type: text/html");
-	client.println(""); //  do not forget this one
-	client.println("<!DOCTYPE HTML>");
-	client.println("<html>");
-	client.println("<head>");
-	client.print("<title>");
-	client.print("Watchman ");
-	for (int nr = 0; nr < 2; nr++)
-	{
-		if (nr > 0)
-			client.print(",");
-
-		client.print(nr);
-		client.print(":");
-		client.print(lightState[nr]);
-	}
-	client.print("</title>");
-	client.println(
-		"<meta name=\"viewport\" content=\"width=device-width, user-scalable=no\" />");
-	//client.println("<meta http-equiv=\"refresh\" content=\"5\">");
-	client.print("<link rel='stylesheet' ");
-	client.print(
-		"href='https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css' ");
-	client.print(
-		"integrity='sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh' ");
-	client.print(" crossorigin='anonymous'>");
-	client.println("<style> body {  width: 100%;   } </style>");
-	client.println("</head>");
-	client.println("<body>");
-	for (int nr = 0; nr < 2; nr++)
-	{
-		client.print(nr);
-		client.print(" lightState = ");
-		if (LIGHT_OFF == lightState[nr])
-		{
-			client.print(" OFF ");
-		}
-		else if (LIGHT_TURNING_ON == lightState[nr])
-		{
-			client.print(" LIGHT_TURNING_ON ");
-		}
-		else if (LIGHT_ON == lightState[nr])
-		{
-			client.print(" LIGHT_ON ");
-		}
-		else if (LIGHT_TURNING_OFF == lightState[nr])
-		{
-			client.print(" LIGHT_TURNING_OFF ");
-		}
-
-		client.println("<br>");
-	}
-	client.println(
-		"<div style=\"text-align:right; background-color: #ffffA0;\">sek:");
-	client.println(millis() / 1000);
-	client.println("</div>");
-	client.println("<br><br>");
-	client.println("<div class=\"nocontainer\">");
-	client.println("<div class=\"row\">");
-	client.println(" <div class=\"col-md-6\">");
-	client.println(
-		"<a href=\"/LED=ON\"><button class=\"btn btn-success btn-block\">Turn On </button></a>");
-	client.println(" </div>");
-	client.println(" <div class=\"col-md-6\">");
-	client.println(
-		"<a href=\"/LED=OFF\"\"><button class=\"btn btn-danger btn-block\">Turn Off </button></a><br />");
-	client.println(" </div>");
-	client.println("</div>");
-	client.println("</body>");
-	client.println("</html>");
-}
-
-void srvStatus(WiFiClient client, int lightState[2], int ledState)
-{
-	// Return the response
-	client.println("HTTP/1.1 200 OK");
-	client.println("Content-Type: application/json");
-	client.println("");
-
-	client.println("{");
-	client.println("name:\"state\"");
-	for (int nr = 0; nr < 2; nr++)
-	{
-		client.print("light");
-		client.print(nr);
-		client.print(":");
-		client.print(lightState[nr]);
-		client.println(",");
-	}
-	for (int nr = 0; nr < 2; nr++)
-	{
-		client.print("pir");
-		client.print(nr);
-		client.print(":");
-		client.print(digitalRead(pirPin[nr]));
-		client.println(",");
-	}
-	client.println("}");
-}
-
 void loop()
 {
 
@@ -341,32 +240,58 @@ void loop()
 			DynamicJsonDocument doc(2048);
 			Serial.print(".");
 			deserializeJson(doc, http.getStream());
+			for (int roomNumber = 0; roomNumber < 2; roomNumber++)
+			{
+				pirs[roomNumber] = doc["pir"][roomNumber].as<int>() - 1;
+				lights[roomNumber] = doc["light"][roomNumber].as<long>() - 1;
+			}
+
 			Serial.print(".");
 			Serial.print(" ");
 			// Read values
 			Serial.print(doc["uptime"].as<long>());
 			Serial.print(" pir:");
-			Serial.print(doc["pir"][0].as<long>());
+
+			Serial.print(pirs[0]);
 			Serial.print(",");
-			Serial.print(doc["pir"][1].as<long>());
+			Serial.print(pirs[1]);
+
+			for (int roomNumber = 0; roomNumber < 2; roomNumber++)
+			{
+				alarms[roomNumber] = pirs[roomNumber];
+			}
 
 			Serial.print(" light:");
-			Serial.print(doc["light"][0].as<long>());
+			Serial.print(lights[0]);
 			Serial.print(",");
-			Serial.print(doc["light"][1].as<long>());
+			Serial.print(lights[1]);
 
 			Serial.print(" reed:");
 			Serial.print(doc["reed"][0].as<long>());
 			// Disconnect
 			// Disconnect
 			http.end();
+
+			pixel[0].clear();
+
+			if (alarms[0]) pixel[0].setPixelColor(1, pixel[1].Color(127, 0, 0));
+			if (alarms[1]) pixel[0].setPixelColor(1, pixel[2].Color(127, 0, 0));
+			pixel[3].setPixelColor(1, pixel[1].Color(0, 0, 0));
 		}
 		else
 		{
 			Serial.print("Can not open ");
 			Serial.print(remoteURL);
 			Serial.print(" ! ");
+			pixel[0].setPixelColor(1, pixel[1].Color(64, 0, 63));
+			pixel[0].setPixelColor(2, pixel[2].Color(64, 0, 63));
+			pixel[0].setPixelColor(3, pixel[3].Color(64, 0, 63));
+			pixel[0].show();
 		}
+
+		pixel[0].setPixelColor(4, pixel[0].Color(0, 2, 1));
+		pixel[0].show();
+
 		lastDebounceTime = millis();
 		Serial.println("");
 	}
